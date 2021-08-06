@@ -1,4 +1,4 @@
-package terraform
+package tform
 
 import (
 	"context"
@@ -9,9 +9,9 @@ import (
 	"github.com/rsb/failure"
 )
 
-type Client struct{}
+type Installer struct{}
 
-func (c *Client) Install(ctx context.Context, installDir, version string) (string, error) {
+func (c *Installer) Install(ctx context.Context, installDir, version string) (string, error) {
 	if installDir == "" {
 		return "", failure.Validation("installDir is empty")
 	}
@@ -49,7 +49,7 @@ func (c *Client) Install(ctx context.Context, installDir, version string) (strin
 	return path, nil
 }
 
-func (c *Client) VerifyExistingInstall(ctx context.Context, path string) error {
+func (c *Installer) VerifyExistingInstall(ctx context.Context, path string) error {
 	finder := tfinstall.ExactPath(path)
 
 	if _, err := tfinstall.Find(ctx, finder); err != nil {
@@ -59,7 +59,7 @@ func (c *Client) VerifyExistingInstall(ctx context.Context, path string) error {
 	return nil
 }
 
-func (c *Client) EnsureInstallDir(dir string) (string, bool, error) {
+func (c *Installer) EnsureInstallDir(dir string) (string, bool, error) {
 	info, err := os.Stat(dir)
 	if err != nil && !os.IsNotExist(err) {
 		return "", false, failure.ToSystem(err, "os.Stat failed for (%s)", dir)
