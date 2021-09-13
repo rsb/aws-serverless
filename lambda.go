@@ -12,7 +12,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/lambda"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -25,7 +24,7 @@ const (
 	APIGWTrigger            = LambdaTrigger("apigw")
 	DDBTrigger              = LambdaTrigger("ddb")
 	DirectTrigger           = LambdaTrigger("direct")
-	CognitoTrigger          = LambdaTrigger("cognito")
+	CognitoTrigger          = LambdaTrigger("cog")
 	S3Trigger               = LambdaTrigger("s3")
 	SNSTrigger              = LambdaTrigger("sns")
 	SQSTrigger              = LambdaTrigger("sqs")
@@ -60,7 +59,7 @@ func ToLambdaTrigger(s string) (LambdaTrigger, error) {
 	case SQSTrigger.String():
 		t = SQSTrigger
 	default:
-		err = errors.Errorf("event trigger (%s) is not registered", t)
+		err = failure.Validation("event trigger (%s) is not registered", t)
 	}
 
 	return t, err
