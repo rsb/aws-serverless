@@ -13,15 +13,18 @@ import (
 )
 
 const (
-	DefaultAppDir    = "app"
-	DefaultLambdaDir = "lambdas"
-	APIGWTrigger     = LambdaTrigger("apigw")
-	DDBTrigger       = LambdaTrigger("ddb")
-	DirectTrigger    = LambdaTrigger("direct")
-	CognitoTrigger   = LambdaTrigger("cognito")
-	S3Trigger        = LambdaTrigger("s3")
-	SNSTrigger       = LambdaTrigger("sns")
-	SQSTrigger       = LambdaTrigger("sqs")
+	DefaultAppDirName       = "app"
+	DefaultLambdaDirName    = "lambdas"
+	DefaultInfraDirName     = "infra"
+	DefaultBuildDirName     = "build"
+	DefaultTerraformDirName = "terraform"
+	APIGWTrigger            = LambdaTrigger("apigw")
+	DDBTrigger              = LambdaTrigger("ddb")
+	DirectTrigger           = LambdaTrigger("direct")
+	CognitoTrigger          = LambdaTrigger("cognito")
+	S3Trigger               = LambdaTrigger("s3")
+	SNSTrigger              = LambdaTrigger("sns")
+	SQSTrigger              = LambdaTrigger("sqs")
 )
 
 type LambdaTrigger string
@@ -102,12 +105,32 @@ func (l Lambda) String() string {
 }
 
 // ServiceLayout is a collection of directories which layout where the
-// required code is located in order to build and deploy aws lambdas
+// required code is located in order to build and deploy aws lambdas.
+//
+// This layout makes the following assumptions:
+// 1) App is always under the Root directory
+// 2) Lambdas are always under the App directory
+// 3) Infra is always under the Root directory
+// 4) Build is always under the Infra directory
+// 5) Terraform is always under the Infra directory
 type ServiceLayout struct {
-	Root    string
-	App     string
-	Lambdas string
-	Build   string
+	Root      string
+	App       string
+	Lambdas   string
+	Infra     string
+	Build     string
+	Terraform string
+}
+
+func DefaultServiceLayout(dir string) ServiceLayout {
+	return ServiceLayout{
+		Root:      dir,
+		App:       DefaultAppDirName,
+		Lambdas:   DefaultLambdaDirName,
+		Infra:     DefaultInfraDirName,
+		Build:     DefaultBuildDirName,
+		Terraform: DefaultTerraformDirName,
+	}
 }
 
 func (sl ServiceLayout) RootDir() string {
@@ -121,13 +144,20 @@ func (sl ServiceLayout) AppDir() string {
 func (sl ServiceLayout) LambdasDir() string {
 	return filepath.Join(sl.AppDir(), sl.Lambdas)
 }
-
-func (sl ServiceLayout) BuildDir() string {
-	return filepath.Join(sl.RootDir(), sl.Build)
-}
-
 func (sl ServiceLayout) TriggerDir(lt LambdaTrigger) string {
 	return filepath.Join(sl.LambdasDir(), lt.String())
+}
+
+func (sl ServiceLayout) InfraDir() string {
+	return filepath.Join(sl.Root, sl.Infra)
+}
+
+func (sl ServiceLayout) BuildDir() string {
+	return filepath.Join(sl.InfraDir(), sl.Build)
+}
+
+func (sl ServiceLayout) TerraformDir() string {
+	return filepath.Join(sl.InfraDir(), sl.Terraform)
 }
 
 type Service struct {

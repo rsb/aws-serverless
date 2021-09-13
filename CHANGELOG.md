@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The date format is YYYY-MM-DD
 ## [Unreleased]
 
+## [0.1.1] - 2021-09-12
+### Added
+- Infra and Terraform to the service layout
+- DefaultServiceLayout constructor
+
 ## [0.1.0] - 2021-09-12
 initial release to kick off development. Ideas a basic and will code will change
 as I find new patterns
