@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The date format is YYYY-MM-DD
 ## [Unreleased]
 
+
+## [0.1.2] - 2021-09-12
+### Added
+- methods to service to create features map by walking the filesystem  
+  looking for lambdas
+
 ## [0.1.1] - 2021-09-12
 ### Added
 - Infra and Terraform to the service layout

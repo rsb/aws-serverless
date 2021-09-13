@@ -2,8 +2,11 @@ package sls
 
 import (
 	"fmt"
+	"io/ioutil"
 	"path/filepath"
 	"strings"
+
+	"github.com/rsb/failure"
 
 	"github.com/aws/aws-sdk-go/service/lambda/lambdaiface"
 
@@ -13,6 +16,7 @@ import (
 )
 
 const (
+	DefaultLambdaGoFile     = "main.go"
 	DefaultAppDirName       = "app"
 	DefaultLambdaDirName    = "lambdas"
 	DefaultInfraDirName     = "infra"
@@ -162,20 +166,120 @@ func (sl ServiceLayout) TerraformDir() string {
 
 type Service struct {
 	ServiceLayout
-	Name     string
-	Env      string
-	API      lambdaiface.LambdaAPI
-	Features map[string]Lambda
+	Name          string
+	Prefix        Prefix
+	API           lambdaiface.LambdaAPI
+	Features      map[string]Lambda
+	BinaryName    string
+	BinaryZipName string
 }
 
-func NewService(name, env string, layout ServiceLayout, api lambdaiface.LambdaAPI) *Service {
+func NewDefaultService(name string, prefix Prefix, rootDir string, api lambdaiface.LambdaAPI) *Service {
+	layout := DefaultServiceLayout(rootDir)
+	return NewService(name, prefix, layout, api)
+}
+
+func NewService(name string, prefix Prefix, layout ServiceLayout, api lambdaiface.LambdaAPI) *Service {
 	return &Service{
 		ServiceLayout: layout,
 		Name:          name,
-		Env:           env,
+		Prefix:        prefix,
 		API:           api,
 		Features:      map[string]Lambda{},
 	}
+}
+
+func (s *Service) LoadFromFilesystem() error {
+	dirs, err := ioutil.ReadDir(s.LambdasDir())
+	if err != nil {
+		return failure.ToSystem(err, "ioutil.ReadDir failed")
+	}
+
+	for _, d := range dirs {
+		if !d.IsDir() {
+			continue
+		}
+
+		lt, err := ToLambdaTrigger(d.Name())
+		if err != nil {
+			return failure.Wrap(err, "ToLambdaTrigger failed")
+		}
+
+		if err := s.LoadFromTriggerDir(lt); err != nil {
+			return failure.Wrap(err, "s.LoadFromTriggerDir failed")
+		}
+	}
+
+	return nil
+}
+
+func (s *Service) LoadFromTriggerDir(lt LambdaTrigger) error {
+	if lt.Empty() {
+		return failure.System("[lt] lambda trigger given is empty")
+	}
+
+	triggerDir := s.TriggerDir(lt)
+	files, err := ioutil.ReadDir(triggerDir)
+	if err != nil {
+		return failure.ToSystem(err, "ioutil.ReadDir failed (%s)", lt)
+	}
+
+	for _, f := range files {
+		if !f.IsDir() {
+			continue
+		}
+
+		dir := filepath.Join(triggerDir, f.Name())
+		files, err = ioutil.ReadDir(dir)
+		if err != nil {
+			return failure.ToSystem(err, "ioutil.ReadDir failed (%s), could not read lambda files", dir)
+		}
+
+		isMain := false
+		for _, c := range files {
+			// there must exist a main.go or else we can't deploy this lambda
+			if c.Name() == DefaultLambdaGoFile {
+				isMain = true
+			}
+		}
+
+		if !isMain {
+			continue
+		}
+
+		if err = s.AddFeature(lt, f.Name()); err != nil {
+			return failure.Wrap(err, "s.AddFeature failed")
+		}
+	}
+
+	return nil
+}
+
+func (s *Service) AddFeature(lt LambdaTrigger, name string) error {
+	if lt.Empty() {
+		return failure.System("[lt] LambdaTrigger is empty")
+	}
+
+	if name == "" {
+		return failure.System("[name] lambda name is empty")
+	}
+
+	if s.Features == nil {
+		s.Features = map[string]Lambda{}
+	}
+
+	rs := Lambda{
+		Prefix:        s.Prefix,
+		Service:       s.Name,
+		Trigger:       lt,
+		BaseName:      name,
+		BinaryName:    s.BinaryName,
+		BinaryZipName: s.BinaryZipName,
+	}
+
+	s.Features[name] = rs
+
+	return nil
 }
 
 func (s *Service) FeatureNames() []string {
