@@ -101,27 +101,29 @@ func (l Lambda) String() string {
 	return fmt.Sprintf("%s-%s-%s", l.Prefix.String(), l.Service, name)
 }
 
+// ServiceLayout is a collection of directories which layout where the
+// required code is located in order to build and deploy aws lambdas
 type ServiceLayout struct {
-	rootDir    string
-	appDir     string
-	lambdasDir string
-	buildDir   string
+	Root    string
+	App     string
+	Lambdas string
+	Build   string
 }
 
 func (sl ServiceLayout) RootDir() string {
-	return sl.rootDir
+	return sl.Root
 }
 
 func (sl ServiceLayout) AppDir() string {
-	return filepath.Join(sl.RootDir(), sl.appDir)
+	return filepath.Join(sl.RootDir(), sl.App)
 }
 
 func (sl ServiceLayout) LambdasDir() string {
-	return filepath.Join(sl.AppDir(), sl.lambdasDir)
+	return filepath.Join(sl.AppDir(), sl.Lambdas)
 }
 
 func (sl ServiceLayout) BuildDir() string {
-	return filepath.Join(sl.RootDir(), sl.buildDir)
+	return filepath.Join(sl.RootDir(), sl.Build)
 }
 
 func (sl ServiceLayout) TriggerDir(lt LambdaTrigger) string {
@@ -152,7 +154,7 @@ func (s *Service) FeatureNames() []string {
 		return names
 	}
 
-	for name, _ := range s.Features {
+	for name := range s.Features {
 		names = append(names, name)
 	}
 
