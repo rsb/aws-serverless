@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 The date format is YYYY-MM-DD
 ## [Unreleased]
+### Fixed
+- Prefix OrgUnit had an infinite loop.
+
 
 ## [0.1.3] - 2021-09-13
 ### Fixed

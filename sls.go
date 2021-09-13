@@ -149,7 +149,7 @@ func (p Prefix) Env() string {
 }
 
 func (p Prefix) OrgUnit() string {
-	return p.OrgUnit()
+	return p.ou
 }
 
 func (p Prefix) RegionName() string {
