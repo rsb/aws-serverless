@@ -1,2 +1,2 @@
 # sls
-Golang package to manage AWS serverless resources using terraform
+Golang package to handle all things AWS with a focus on serverless computing.

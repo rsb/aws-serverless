@@ -5,165 +5,227 @@ package sls
 
 import (
 	"fmt"
-	"strings"
 
+	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/rsb/failure"
+	"github.com/spf13/viper"
 )
 
 const (
-	UsEast1      = Region("us-east-1")
-	UsEast2      = Region("us-east-2")
-	UsWest1      = Region("us-west-1")
-	UsWest2      = Region("us-west-2")
-	AfSouth1     = Region("af-south-1")
-	ApEast1      = Region("ap-east-1")
-	ApSouth1     = Region("ap-south-1")
-	ApNortheast1 = Region("ap-northeast-1")
-	ApNortheast2 = Region("ap-northeast-2")
-	ApNortheast3 = Region("ap-northeast-3")
-	ApSoutheast1 = Region("ap-southeast-1")
-	ApSoutheast2 = Region("ap-southeast-2")
-	CaCentral1   = Region("ca-central-1")
-	EuCentral1   = Region("eu-central-1")
-	EuWest1      = Region("eu-west-1")
-	EuWest2      = Region("eu-west-2")
-	EuWest3      = Region("eu-west-3")
-	EuSouth1     = Region("eu-south-1")
-	EuNorth1     = Region("eu-north-1")
-	MeSouth1     = Region("me-south-1")
-	SaEast1      = Region("sa-east-1")
-	UsGovEast1   = Region("us-gov-east-1")
-	UsGovWest1   = Region("us-gov-west-1")
+	LocalTerraformRepoName = "local-terraform"
+	GithubURL              = "github.com"
+	TerraformName          = "terraform"
+	SSHProtocol            = Protocol("ssh")
+	HTTPSProtocol          = Protocol("https")
+	CLIProtocol            = Protocol("cmds")
+	CLITemplate            = "%s/%s"
+	SSHTemplate            = "git@%s:%s/%s.git"
+	HTTPSTemplate          = "https://%s/%s/%s.git"
+
+	RemoteStateTF  = "remote-state"
+	LambdaDeployTF = "lambda-deploy-bucket"
+	KeyPairTF      = "key-pair"
+	MessagingTF    = "messaging"
+	CognitoTF      = "cognito"
+	NetworkingTF   = "networking"
 )
 
-// Region represents the AWS region identifier like us-east-1
-type Region string
-
-func (r Region) String() string {
-	return string(r)
-}
-
-func (r Region) Empty() bool {
-	return r.String() == ""
-}
-
-func (r Region) Code() string {
-	return RegionCode(r.String())
-}
-
-func ToRegion(region string) (Region, error) {
-	var r Region
-	var err error
-
-	switch region {
-	case UsEast1.String(), UsEast1.Code():
-		r = UsEast1
-	case UsEast2.String(), UsEast2.Code():
-		r = UsEast2
-	case UsWest1.String(), UsWest1.Code():
-		r = UsWest1
-	case UsWest2.String(), UsWest2.Code():
-		r = UsWest2
-	case AfSouth1.String(), AfSouth1.Code():
-		r = AfSouth1
-	case ApEast1.String(), ApEast1.Code():
-		r = ApEast1
-	case ApSouth1.String(), ApSouth1.Code():
-		r = ApSouth1
-	case ApNortheast1.String(), ApNortheast1.Code():
-		r = ApNortheast1
-	case ApNortheast2.String(), ApNortheast2.Code():
-		r = ApNortheast2
-	case ApNortheast3.String(), ApNortheast3.Code():
-		r = ApNortheast3
-	case ApSoutheast1.String(), ApSoutheast1.Code():
-		r = ApSoutheast1
-	case ApSoutheast2.String(), ApSoutheast2.Code():
-		r = ApSoutheast2
-	case CaCentral1.String(), CaCentral1.Code():
-		r = CaCentral1
-	case EuCentral1.String(), EuCentral1.Code():
-		r = EuCentral1
-	case EuWest1.String(), EuWest1.Code():
-		r = EuWest1
-	case EuWest2.String(), EuWest2.Code():
-		r = EuWest2
-	case EuWest3.String(), EuWest3.Code():
-		r = EuWest3
-	case EuSouth1.String(), EuSouth1.Code():
-		r = EuSouth1
-	case EuNorth1.String(), EuNorth1.Code():
-		r = EuNorth1
-	case MeSouth1.String(), MeSouth1.Code():
-		r = MeSouth1
-	case SaEast1.String(), SaEast1.Code():
-		r = SaEast1
-	case UsGovEast1.String(), UsGovEast1.Code():
-		r = UsGovEast1
-	case UsGovWest1.String(), UsGovWest1.Code():
-		r = UsGovWest1
-
-	default:
-		err = failure.Validation("aws region (%s) is not mapped", region)
-	}
-
-	return r, err
-}
-
-// RegionCode takes an AWS region like us-east-1 and compresses into a smaller
-// code like (us-east-1) -> (use1) which is used in resource naming
-func RegionCode(region string) string {
-	parts := strings.Split(region, "-")
-	if len(parts) != 3 {
-		return ""
-	}
-	return fmt.Sprintf("%s%s%s", parts[0], string(parts[1][0]), parts[2])
-}
-
+// Prefix represents our naming prefix, used when creating resources with
+// terraform. Every fender resource has a prefix to encode information about
+// it. The fender prefix is laid out as follows:
+// <region_code>-<env>
+// region_code - this is the aws region code so `use1 [us-east-1]`
+// env 				 - the environment this resource is provisioned in. `[prod,qa,active,<developer_code>]`
 type Prefix struct {
-	ou  string
-	r   Region
-	env string
+	Region  Region
+	EnvName string
 }
 
-func NewPrefix(ou, reg, env string) (Prefix, error) {
+func NewPrefix(reg, env string) (Prefix, error) {
 	var p Prefix
-	if ou == "" {
-		return p, failure.Validation("org unit is empty")
+	if reg == "" {
+		return p, failure.System("[reg] aws region is empty should be in the form of (us-east-1)")
 	}
 
 	region, err := ToRegion(reg)
 	if err != nil {
-		return p, failure.Wrap(err, "ToRegion failed")
+		return p, failure.Wrap(err, "[reg] ToRegion failed")
 	}
 
 	if env == "" {
-		return p, failure.Validation("env is empty")
+		return p, failure.System("[env] application environment is empty")
 	}
 
-	return Prefix{ou: ou, r: region, env: env}, nil
+	return Prefix{Region: region, EnvName: env}, nil
 }
 
-func (p Prefix) Env() string {
-	return p.env
-}
+func DefaultPrefix(env string) (Prefix, error) {
+	prefix, err := NewPrefix(DefaultRegion.String(), env)
+	if err != nil {
+		return prefix, failure.Wrap(err, "NewPrefix failed")
+	}
 
-func (p Prefix) OrgUnit() string {
-	return p.ou
-}
-
-func (p Prefix) RegionName() string {
-	return p.r.String()
-}
-
-func (p Prefix) RegionCode() string {
-	return p.r.Code()
-}
-
-func (p Prefix) Region() Region {
-	return p.r
+	return prefix, nil
 }
 
 func (p Prefix) String() string {
-	return fmt.Sprintf("%s-%s-%s", p.OrgUnit(), p.RegionCode(), p.Env())
+	return fmt.Sprintf("%s-%s", p.Region.Code(), p.Env())
+}
+
+func (p Prefix) Env() string {
+	return p.EnvName
+}
+func (p Prefix) RegionCode() string {
+	return p.RegionCode()
+}
+
+func (p Prefix) AWSRegion() string {
+	return p.Region.String()
+}
+
+func (p Prefix) IsValid() bool {
+	return !p.Region.IsEmpty() && p.Env() != ""
+}
+
+// IAC stands for Infrastructure As Code it holds the path to terraform
+// binary as well as the Repo for global resources to be provisioned into
+// the developer local aws account. Dir is where we will clone our
+// global resource's repo.
+type IAC struct {
+	BinaryDir       string
+	BinaryName      string
+	Version         string
+	GlobalResources GlobalResources
+}
+
+// AWSAccount hold the profile used and the default region. We can use
+// this to set ENV vars before running our code.
+type AWSAccount struct {
+	Region  Region
+	Profile string
+}
+
+// VCS hold info about our version control system. In our case this is git/GitHub
+type VCS struct {
+	URL   string
+	Owner string
+}
+
+type Protocol string
+
+func (p Protocol) String() string {
+	return string(p)
+}
+
+func (p Protocol) IsEmpty() bool {
+	return p.String() == ""
+}
+
+type Repo struct {
+	Name            string
+	Owner           string
+	IsBranch        bool
+	RefName         string
+	DefaultProtocol Protocol
+}
+
+func NewRepo(owner, name, refName string, isBranch bool) Repo {
+	return Repo{
+		Owner:           owner,
+		Name:            name,
+		RefName:         refName,
+		IsBranch:        isBranch,
+		DefaultProtocol: SSHProtocol,
+	}
+}
+
+func (r Repo) URI(p ...Protocol) string {
+	var protocol Protocol
+	var uri string
+
+	if len(protocol) > 0 {
+		protocol = p[0]
+	}
+
+	if protocol.IsEmpty() {
+		protocol = r.DefaultProtocol
+	}
+
+	switch protocol {
+	case HTTPSProtocol:
+		uri = fmt.Sprintf(HTTPSTemplate, GithubURL, r.Owner, r.Name)
+	case CLIProtocol:
+		uri = fmt.Sprintf(CLITemplate, r.Owner, r.Name)
+	default:
+		uri = fmt.Sprintf(SSHTemplate, GithubURL, r.Owner, r.Name)
+	}
+
+	return uri
+}
+
+type GlobalResources struct {
+	RemoteState TFResource
+	Repo        Repo
+	RootDir     string
+	Config      map[string]TFResource
+}
+
+func (gr GlobalResources) LambdaDeployBucket() (TFResource, bool) {
+	r, ok := gr.Config[LambdaDeployTF]
+	return r, ok
+}
+
+func (gr GlobalResources) KeyPair() (TFResource, bool) {
+	r, ok := gr.Config[KeyPairTF]
+	return r, ok
+}
+
+func (gr GlobalResources) Messaging() (TFResource, bool) {
+	r, ok := gr.Config[MessagingTF]
+	return r, ok
+}
+
+func (gr GlobalResources) Cognito() (TFResource, bool) {
+	r, ok := gr.Config[CognitoTF]
+	return r, ok
+}
+
+func (gr GlobalResources) Networking() (TFResource, bool) {
+	r, ok := gr.Config[NetworkingTF]
+	return r, ok
+}
+
+type TFBackend struct {
+	Bucket      string
+	Key         string
+	Region      Region
+	DynamoTable string
+}
+
+type TFResource struct {
+	Dir       string
+	StateFile string
+	PlanFile  string
+	Name      string
+	Backend   TFBackend
+	Vars      map[string]string
+}
+
+func (tr TFResource) IsBackend() bool {
+	return tr.Name != RemoteStateTF
+}
+
+type ConfigurableFeature interface {
+	ProcessEnv(prefix ...string) error
+	ProcessCLI(v *viper.Viper, prefix ...string) error
+	ProcessParamStore(pstore ssmiface.SSMAPI, appTitle string, isEncrypted bool, prefix ...string) (map[string]string, error)
+	CollectParamStoreFromEnv(appTitle string, prefix ...string) (map[string]string, error)
+	EnvNames(prefix ...string) ([]string, error)
+	EnvToMap(prefix ...string) (map[string]string, error)
+	EnvReport(prefix ...string) (map[string]string, error)
+}
+
+type KeyPair struct {
+	Name      string
+	PublicKey string
 }

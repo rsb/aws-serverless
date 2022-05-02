@@ -6,18 +6,22 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"path/filepath"
 
-	"github.com/pkg/errors"
 	"github.com/rsb/failure"
 )
 
 const (
-	DefaultOutputName = "bootstrap"
-	GoBuildCmdName    = "build"
-	GoBinaryName      = "go"
-	DefaultLDFlags    = `-ldflags="-s -w -X main.Version=$(git rev-parse HEAD)"`
+	GoBinaryName   = "go"
+	GoBuildCmdName = "build"
+	DefaultLDFlags = `-ldflags="-s -w -X main.Version=$(git rev-parse HEAD)"`
 )
+
+type CompileResult struct {
+	BuildDir   string
+	BinaryName string
+	BinaryPath string
+	CodeDir    string
+}
 
 func Zip(zf, binary string) error {
 	zipfile, err := os.Create(zf)
@@ -62,29 +66,34 @@ func Zip(zf, binary string) error {
 	return nil
 }
 
-func NewGoBuildCmd(outputDir, outputName, targetDir string) (*exec.Cmd, error) {
+// NewGoBuildCmd is designed to compile golang source code used for AWS Lambdas,
+// for us these are features in our microservices.
+// 	buildDir   - directory the binary will be compiled to
+//  binaryName - is the name of the binary, this is used in the -o flag
+//  targetDir  - is the directory which contains the source code to build
+func NewGoBuildCmd(buildDir, binaryName, targetDir string) (*exec.Cmd, error) {
 	if targetDir == "" {
-		return nil, errors.New("[b.RootDir] is empty")
+		return nil, failure.System("[targetDir] is empty")
 	}
 
 	if _, err := os.Stat(targetDir); err != nil {
-		return nil, errors.Wrapf(err, "os.Stat failed, b.TargetDir does not exist or is not readable")
+		return nil, failure.ToSystem(err, "os.Stat failed, targetDir does not exist or is not readable")
 	}
 
-	if _, err := os.Stat(outputDir); err != nil {
-		return nil, errors.Wrapf(err, "os.Stat failed, b.OutputDir does not exist or is not readable")
+	if _, err := os.Stat(buildDir); err != nil {
+		return nil, failure.ToSystem(err, "os.Stat failed, buildDir does not exist or is not readable")
 	}
 
-	if outputName == "" {
-		return nil, errors.New("outputName is empty")
+	if binaryName == "" {
+		return nil, failure.System("binaryName is empty")
 	}
 
 	goExec, err := exec.LookPath(GoBinaryName)
 	if err != nil {
-		return nil, errors.Wrap(err, "LookupGoBinary failed")
+		return nil, failure.ToSystem(err, "exec.LookPath failed")
 	}
 
-	outputPath := filepath.Join(outputDir, outputName)
+	outputPath := fmt.Sprintf("%s/%s", buildDir, binaryName)
 
 	cmd := exec.Cmd{
 		Env:  append(os.Environ(), "GOOS=linux"),
