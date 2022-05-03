@@ -12,14 +12,10 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
-
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/lambda"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/rsb/failure"
-
-	"github.com/aws/aws-sdk-go/service/lambda/lambdaiface"
 )
 
 // ServiceName is used for microservices. These are a repository of lambdas and as
@@ -59,7 +55,9 @@ func (sn ServiceName) String() string {
 	return sn.QualifiedName()
 }
 
-type LambdaAPI interface{}
+type LambdaAPI interface {
+	UpdateFunctionCode(ctx context.Context, params *lambda.UpdateFunctionCodeInput, optFns ...func(*lambda.Options)) (*lambda.UpdateFunctionCodeOutput, error)
+}
 type PStoreAPI interface{}
 
 // CodeLayout is a collection of directories which layout where the
@@ -130,8 +128,8 @@ type MicroService struct {
 	Name      ServiceName
 	Account   AWSAccount
 	Repo      Repo
-	LambdaAPI lambdaiface.LambdaAPI
-	PStoreAPI ssmiface.SSMAPI
+	LambdaAPI LambdaAPI
+	PStoreAPI PStoreAPI
 	Features  map[string]Lambda
 }
 
