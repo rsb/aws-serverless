@@ -62,6 +62,61 @@ func TestClient_Param_Failures(t *testing.T) {
 	}
 }
 
+func TestClient_Param_Success(t *testing.T) {
+	tests := []struct {
+		name  string
+		key   string
+		value string
+		resp  *ssm.GetParameterOutput
+	}{
+		{
+			name:  "some typical env var in parameter store",
+			key:   "foo",
+			value: "bar",
+			resp: &ssm.GetParameterOutput{
+				Parameter: &types.Parameter{
+					Value: aws.String("bar"),
+				},
+			},
+		},
+		{
+			name: "A parameter store value that is actually just an empty string",
+			key:  "foo",
+			resp: &ssm.GetParameterOutput{
+				Parameter: &types.Parameter{
+					Value: aws.String(""),
+				},
+			},
+		},
+		{
+			name:  "Should never happen, but when Parameter is nil",
+			key:   "foo",
+			value: "",
+			resp: &ssm.GetParameterOutput{
+				Parameter: nil,
+			},
+		},
+		{
+			name:  "Should never happen, but if response is nil",
+			key:   "foo",
+			value: "",
+			resp:  nil,
+		},
+	}
+
+	ctx := context.TODO()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			api := MockAPI{GetParamResponse: tt.resp}
+			c, err := pstore.NewClient(&api, false)
+			require.NoError(t, err, "pstore.NewClient is not expected to fail")
+			value, err := c.Param(ctx, tt.key)
+			require.NoError(t, err, "c.Param is not expected to fail")
+			assert.Equal(t, tt.value, value)
+		})
+	}
+}
+
 type MockAPI struct {
 	GetParamError     error
 	GetParamResponse  *ssm.GetParameterOutput
