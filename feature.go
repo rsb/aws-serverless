@@ -79,7 +79,7 @@ func ToLambdaTrigger(s string) (LambdaTrigger, error) {
 	return t, err
 }
 
-type Lambda struct {
+type Feature struct {
 	Name          string
 	QualifiedName string
 	Trigger       LambdaTrigger
@@ -89,7 +89,7 @@ type Lambda struct {
 	Env           map[string]string
 }
 
-func (l Lambda) EnvNames(prefix ...string) ([]string, error) {
+func (l Feature) EnvNames(prefix ...string) ([]string, error) {
 	names, err := l.Conf.EnvNames(prefix...)
 	if err != nil {
 		return nil, failure.Wrap(err, "l.Conf.EnvNames failed")
@@ -98,7 +98,7 @@ func (l Lambda) EnvNames(prefix ...string) ([]string, error) {
 	return names, nil
 }
 
-func (l Lambda) ToAWSEnv() *lambda.Environment {
+func (l Feature) ToAWSEnv() *lambda.Environment {
 	data := map[string]*string{}
 	for k, v := range l.Env {
 		data[k] = aws.String(v)
@@ -109,22 +109,22 @@ func (l Lambda) ToAWSEnv() *lambda.Environment {
 	}
 }
 
-func (l Lambda) AddEnv(name, value string) {
+func (l Feature) AddEnv(name, value string) {
 	l.Env[name] = value
 }
 
-func (l Lambda) TriggerDir() string {
+func (l Feature) TriggerDir() string {
 	return l.Trigger.String()
 }
 
-func (l Lambda) CodeDir() string {
+func (l Feature) CodeDir() string {
 	return filepath.Join(l.TriggerDir(), l.Name)
 }
 
-func (l Lambda) NameWithTrigger() string {
+func (l Feature) NameWithTrigger() string {
 	return fmt.Sprintf("%s_%s", l.Trigger, l.Name)
 }
 
-func (l Lambda) String() string {
+func (l Feature) String() string {
 	return l.Name
 }

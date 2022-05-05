@@ -87,17 +87,6 @@ func (p Prefix) IsValid() bool {
 	return !p.Region.IsEmpty() && p.Env() != ""
 }
 
-// IAC stands for Infrastructure As Code it holds the path to terraform
-// binary as well as the Repo for global resources to be provisioned into
-// the developer local aws account. Dir is where we will clone our
-// global resource's repo.
-type IAC struct {
-	BinaryDir       string
-	BinaryName      string
-	Version         string
-	GlobalResources GlobalResources
-}
-
 // AWSAccount hold the profile used and the default region. We can use
 // this to set ENV vars before running our code.
 type AWSAccount struct {
@@ -161,58 +150,6 @@ func (r Repo) URI(p ...Protocol) string {
 	}
 
 	return uri
-}
-
-type GlobalResources struct {
-	RemoteState TFResource
-	Repo        Repo
-	RootDir     string
-	Config      map[string]TFResource
-}
-
-func (gr GlobalResources) LambdaDeployBucket() (TFResource, bool) {
-	r, ok := gr.Config[LambdaDeployTF]
-	return r, ok
-}
-
-func (gr GlobalResources) KeyPair() (TFResource, bool) {
-	r, ok := gr.Config[KeyPairTF]
-	return r, ok
-}
-
-func (gr GlobalResources) Messaging() (TFResource, bool) {
-	r, ok := gr.Config[MessagingTF]
-	return r, ok
-}
-
-func (gr GlobalResources) Cognito() (TFResource, bool) {
-	r, ok := gr.Config[CognitoTF]
-	return r, ok
-}
-
-func (gr GlobalResources) Networking() (TFResource, bool) {
-	r, ok := gr.Config[NetworkingTF]
-	return r, ok
-}
-
-type TFBackend struct {
-	Bucket      string
-	Key         string
-	Region      Region
-	DynamoTable string
-}
-
-type TFResource struct {
-	Dir       string
-	StateFile string
-	PlanFile  string
-	Name      string
-	Backend   TFBackend
-	Vars      map[string]string
-}
-
-func (tr TFResource) IsBackend() bool {
-	return tr.Name != RemoteStateTF
 }
 
 type ConfigurableFeature interface {

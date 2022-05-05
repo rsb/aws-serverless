@@ -3,7 +3,6 @@ module github.com/rsb/sls
 go 1.18
 
 require (
-	github.com/aws/aws-lambda-go v1.31.1
 	github.com/aws/aws-sdk-go v1.15.78
 	github.com/rsb/failure v0.0.0-20210801175421-688c2e2c8cc7
 	github.com/spf13/viper v1.11.0
