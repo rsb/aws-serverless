@@ -4,9 +4,61 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 
 	"github.com/rsb/failure"
 )
+
+const (
+	GQLTrigger      = LambdaTrigger("gql")
+	APIGWTrigger    = LambdaTrigger("apigw")
+	DDBTrigger      = LambdaTrigger("ddb")
+	DirectTrigger   = LambdaTrigger("direct")
+	CognitoTrigger  = LambdaTrigger("cog")
+	S3Trigger       = LambdaTrigger("s3")
+	SNSTrigger      = LambdaTrigger("sns")
+	SQSTrigger      = LambdaTrigger("sqs")
+	StepFuncTrigger = LambdaTrigger("sfn")
+)
+
+type LambdaTrigger string
+
+func (lt LambdaTrigger) String() string {
+	return string(lt)
+}
+
+func (lt LambdaTrigger) IsEmpty() bool {
+	return lt.String() == ""
+}
+
+func ToLambdaTrigger(s string) (LambdaTrigger, error) {
+	var t LambdaTrigger
+	var err error
+	switch strings.ToLower(s) {
+	case APIGWTrigger.String():
+		t = APIGWTrigger
+	case DDBTrigger.String():
+		t = DDBTrigger
+	case DirectTrigger.String():
+		t = DirectTrigger
+	case CognitoTrigger.String():
+		t = CognitoTrigger
+	case S3Trigger.String():
+		t = S3Trigger
+	case SNSTrigger.String():
+		t = SNSTrigger
+	case SQSTrigger.String():
+		t = SQSTrigger
+	case GQLTrigger.String():
+		t = GQLTrigger
+	case StepFuncTrigger.String():
+		t = StepFuncTrigger
+	default:
+		err = failure.Validation("event trigger (%s) is not registered", t)
+	}
+
+	return t, err
+}
 
 // ServiceName is used for microservices. These are a repository of lambdas and as
 // such the Microservice is not a physical aws resource but rather a collection of resources
@@ -105,6 +157,36 @@ func (cl CodeLayout) TerraformDir() string {
 
 func (cl CodeLayout) CLIDir() string {
 	return filepath.Join(cl.RootDir(), cl.CLI)
+}
+
+type Feature struct {
+	Name          string
+	QualifiedName string
+	Trigger       LambdaTrigger
+	BinaryName    string
+	BinaryZipName string
+	Conf          ConfigurableFeature
+	Env           map[string]string
+}
+
+func (l Feature) AddEnv(name, value string) {
+	l.Env[name] = value
+}
+
+func (l Feature) TriggerDir() string {
+	return l.Trigger.String()
+}
+
+func (l Feature) CodeDir() string {
+	return filepath.Join(l.TriggerDir(), l.Name)
+}
+
+func (l Feature) NameWithTrigger() string {
+	return fmt.Sprintf("%s_%s", l.Trigger, l.Name)
+}
+
+func (l Feature) String() string {
+	return l.Name
 }
 
 type MicroService struct {

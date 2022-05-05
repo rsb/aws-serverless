@@ -6,12 +6,28 @@ package sls
 import (
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
-	"github.com/rsb/failure"
 	"github.com/spf13/viper"
+
+	"github.com/rsb/failure"
 )
 
 const (
+	DefaultOutputName          = "bootstrap"
+	DefaultBinaryZipName       = "deployment.zip"
+	DefaultInfraDir            = "infra/local"
+	DefaultTerraform           = "terraform"
+	DefaultLambdasDir          = "app/lambdas"
+	DefaultBuildDir            = "/tmp"
+	DefaultRepoRefName         = "main"
+	DefaultLambdaInvokeType    = "RequestResponse"
+	DefaultLambdaInvokeLogType = "Tail"
+	DefaultLambdaGoFile        = "main.go"
+	DefaultAppDirName          = "app"
+	DefaultLambdaDirName       = "lambdas"
+	DefaultInfraDirName        = "infra"
+	DefaultBuildDirName        = "build"
+	DefaultTerraformDirName    = "terraform"
+
 	LocalTerraformRepoName = "local-terraform"
 	GithubURL              = "github.com"
 	TerraformName          = "terraform"
@@ -153,13 +169,19 @@ func (r Repo) URI(p ...Protocol) string {
 }
 
 type ConfigurableFeature interface {
-	ProcessEnv(prefix ...string) error
-	ProcessCLI(v *viper.Viper, prefix ...string) error
-	ProcessParamStore(pstore ssmiface.SSMAPI, appTitle string, isEncrypted bool, prefix ...string) (map[string]string, error)
-	CollectParamStoreFromEnv(appTitle string, prefix ...string) (map[string]string, error)
-	EnvNames(prefix ...string) ([]string, error)
-	EnvToMap(prefix ...string) (map[string]string, error)
-	EnvReport(prefix ...string) (map[string]string, error)
+	ProcessEnv() error
+	ProcessCLI(v *viper.Viper) error
+	CollectParamsFromEnv(appTitle string) (map[string]string, error)
+	ParamNames(appTitle string) ([]string, error)
+	EnvNames() ([]string, error)
+	EnvToMap() (map[string]string, error)
+	SetPrefix(prefix string)
+	GetPrefix()
+	IsPrefixEnabled() bool
+	MarkDefaultsAsExcluded()
+	MarkDefaultsAsIncluded()
+	SetExcludeDefaults(value bool)
+	IsDefaultsExcluded() bool
 }
 
 type KeyPair struct {
