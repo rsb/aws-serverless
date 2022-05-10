@@ -23,9 +23,20 @@ type AdapterAPI interface {
 	PutParameter(ctx context.Context, params *ssm.PutParameterInput, optFns ...func(*ssm.Options)) (*ssm.PutParameterOutput, error)
 }
 
+type PathPaging interface {
+	HasMorePages() bool
+	NextPage(ctx context.Context, optFns ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error)
+}
+
+// NewPathPaginatorFn constructor function used to create a new paginator for
+// GetParametersByPath api call
+type NewPathPaginatorFn func(api AdapterAPI, in *ssm.GetParametersByPathInput) PathPaging
+
 type Client struct {
 	api         AdapterAPI
 	isEncrypted bool
+
+	newPathPaginatorFn NewPathPaginatorFn
 }
 
 // NewClient simple constructor to inject private api and configuration values
@@ -39,6 +50,14 @@ func NewClient(api AdapterAPI, isEncrypted bool) (*Client, error) {
 
 func (c *Client) IsEncrypted() bool {
 	return c.isEncrypted
+}
+
+func (c *Client) PathPaginatorConstructor() NewPathPaginatorFn {
+	return c.newPathPaginatorFn
+}
+
+func (c *Client) SetPathPaginatorConstructor(fn NewPathPaginatorFn) {
+	c.newPathPaginatorFn = fn
 }
 
 // Param will retrieve a single parameter as `key` returning the value always as a string.
@@ -86,14 +105,30 @@ func (c *Client) Path(ctx context.Context, path string, recursive ...bool) (map[
 		Recursive:      isRecursive,
 	}
 
-	pager := ssm.NewGetParametersByPathPaginator(c.api, &in)
+	createPager := c.PathPaginatorConstructor()
+	if createPager == nil {
+		return nil, failure.System("c.PathPagingConstructor failed. closure is not initialized")
+	}
+	pager := createPager(c.api, &in)
 
-	var errs []error
+	result, err := c.ResolvePathPages(ctx, pager)
+	if err != nil {
+		return result, failure.Wrap(err, "c.ResolvePathPages failed")
+	}
+
+	return result, nil
+}
+
+func (c *Client) ResolvePathPages(ctx context.Context, pager PathPaging) (map[string]string, error) {
+	var failed = &failure.Multi{}
+	var result = map[string]string{}
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			errs = append(errs, failure.Wrap(err, "pager.NextPage failed"))
+			failed = failure.Append(failed, err)
+			continue
 		}
+
 		for _, p := range out.Parameters {
 			if p.Name == nil || p.Value == nil {
 				continue
@@ -102,7 +137,7 @@ func (c *Client) Path(ctx context.Context, path string, recursive ...bool) (map[
 		}
 	}
 
-	return result, nil
+	return result, failed.ErrorOrNil()
 }
 
 // Collect retrieves one or many params regardless of hierarchy.
@@ -226,4 +261,8 @@ func handleAPIError(err error, msg string, a ...interface{}) error {
 	}
 
 	return result
+}
+
+func newPathPaginator(api AdapterAPI, in *ssm.GetParametersByPathInput) PathPaging {
+	return ssm.NewGetParametersByPathPaginator(api, in)
 }
