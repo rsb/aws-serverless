@@ -12,6 +12,7 @@ import (
 )
 
 const (
+	amznTraceIDCtxKey          = "x-amzn-trace-id"
 	DefaultOutputName          = "bootstrap"
 	DefaultBinaryZipName       = "deployment.zip"
 	DefaultInfraDir            = "infra/local"

@@ -4,61 +4,109 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"reflect"
 	"strings"
+
+	"github.com/aws/aws-lambda-go/events"
 
 	"github.com/rsb/failure"
 )
 
 const (
-	GQLTrigger      = LambdaTrigger("gql")
-	APIGWTrigger    = LambdaTrigger("apigw")
-	DDBTrigger      = LambdaTrigger("ddb")
-	DirectTrigger   = LambdaTrigger("direct")
-	CognitoTrigger  = LambdaTrigger("cog")
-	S3Trigger       = LambdaTrigger("s3")
-	SNSTrigger      = LambdaTrigger("sns")
-	SQSTrigger      = LambdaTrigger("sqs")
-	StepFuncTrigger = LambdaTrigger("sfn")
+	APIGWProxyTrigger      = InvokeTrigger("apigw")
+	APIGWCustomAuthTrigger = InvokeTrigger("apigw-auth")
+	AppSyncTrigger         = InvokeTrigger("appsync")
+	CloudWatchEventTrigger = InvokeTrigger("cw-event")
+	CloudWatchLogsTrigger  = InvokeTrigger("cw-log")
+	CognitoTrigger         = InvokeTrigger("cognito")
+	DDBTrigger             = InvokeTrigger("ddb")
+	DDBStreamTrigger       = InvokeTrigger("ddb-stream")
+	DirectTrigger          = InvokeTrigger("direct")
+	KinesisStreamTrigger   = InvokeTrigger("kinesis-stream")
+	SNSTrigger             = InvokeTrigger("sns")
+	SQSTrigger             = InvokeTrigger("sqs")
+	S3Trigger              = InvokeTrigger("s3")
+	StepTrigger            = InvokeTrigger("sfn")
 )
 
-type LambdaTrigger string
+var (
+	APIGWProxyEvent      = reflect.TypeOf(events.APIGatewayProxyRequest{})
+	APIGWCustomAuthEvent = reflect.TypeOf(events.APIGatewayCustomAuthorizerRequest{})
+	CloudWatchEvent      = reflect.TypeOf(events.CloudWatchEvent{})
+	CloudWatchLogsEvent  = reflect.TypeOf(events.CloudwatchLogsEvent{})
+	DDBEvent             = reflect.TypeOf(events.DynamoDBEvent{})
+	DirectEvent          = reflect.TypeOf([]byte{})
+	SNSEvent             = reflect.TypeOf(events.SNSEvent{})
+	SQSEvent             = reflect.TypeOf(events.SQSEvent{})
+	S3Event              = reflect.TypeOf(events.S3Event{})
+)
 
-func (lt LambdaTrigger) String() string {
+type InvokeTrigger string
+
+func (lt InvokeTrigger) String() string {
 	return string(lt)
 }
 
-func (lt LambdaTrigger) IsEmpty() bool {
+func (lt InvokeTrigger) IsEmpty() bool {
 	return lt.String() == ""
 }
 
-func ToLambdaTrigger(s string) (LambdaTrigger, error) {
-	var t LambdaTrigger
+func InvokeTriggerFromString(s string) (InvokeTrigger, error) {
+	var t InvokeTrigger
 	var err error
 	switch strings.ToLower(s) {
-	case APIGWTrigger.String():
-		t = APIGWTrigger
+	case APIGWProxyTrigger.String():
+		t = APIGWProxyTrigger
 	case DDBTrigger.String():
 		t = DDBTrigger
+	case DDBStreamTrigger.String():
+		t = DDBStreamTrigger
 	case DirectTrigger.String():
 		t = DirectTrigger
 	case CognitoTrigger.String():
 		t = CognitoTrigger
 	case S3Trigger.String():
 		t = S3Trigger
+	case StepTrigger.String():
+		t = StepTrigger
 	case SNSTrigger.String():
 		t = SNSTrigger
-	case SQSTrigger.String():
-		t = SQSTrigger
-	case GQLTrigger.String():
-		t = GQLTrigger
-	case StepFuncTrigger.String():
-		t = StepFuncTrigger
 	default:
-		err = failure.Validation("event trigger (%s) is not registered", t)
+		err = failure.System("event trigger (%s) is not mapped", t)
 	}
 
 	return t, err
 }
+
+func InvokeTriggerFromEvent(t reflect.Type) (InvokeTrigger, error) {
+	var it InvokeTrigger
+	var err error
+
+	switch t {
+	case APIGWProxyEvent:
+		it = APIGWProxyTrigger
+	case APIGWCustomAuthEvent:
+		it = APIGWCustomAuthTrigger
+	case CloudWatchEvent:
+		it = CloudWatchEventTrigger
+	case CloudWatchLogsEvent:
+		it = CloudWatchLogsTrigger
+	case DDBEvent:
+		it = DDBTrigger
+	case DirectEvent:
+		it = DirectTrigger
+	case SNSEvent:
+		it = SNSTrigger
+	case SQSEvent:
+		it = SQSTrigger
+	case S3Event:
+		it = S3Trigger
+	}
+
+	return it, err
+}
+
+type ConcreteHandlerFn func() (out interface{}, err error)
 
 // ServiceName is used for microservices. These are a repository of lambdas and as
 // such the Microservice is not a physical aws resource but rather a collection of resources
@@ -139,7 +187,7 @@ func (cl CodeLayout) AppDir() string {
 func (cl CodeLayout) LambdasDir() string {
 	return filepath.Join(cl.AppDir(), cl.Lambdas)
 }
-func (cl CodeLayout) TriggerDir(lt LambdaTrigger) string {
+func (cl CodeLayout) TriggerDir(lt InvokeTrigger) string {
 	return filepath.Join(cl.LambdasDir(), lt.String())
 }
 
@@ -162,7 +210,7 @@ func (cl CodeLayout) CLIDir() string {
 type Feature struct {
 	Name          string
 	QualifiedName string
-	Trigger       LambdaTrigger
+	Trigger       InvokeTrigger
 	BinaryName    string
 	BinaryZipName string
 	Conf          ConfigurableFeature
@@ -290,7 +338,7 @@ func (s *MicroService) LoadFeaturesFromFilesystem() error {
 			continue
 		}
 
-		et, err := ToLambdaTrigger(d.Name())
+		et, err := InvokeTriggerFromString(d.Name())
 		if err != nil {
 			return failure.Wrap(err, "invalid lambda trigger name, ToEventTrigger failed")
 		}
@@ -303,7 +351,7 @@ func (s *MicroService) LoadFeaturesFromFilesystem() error {
 	return nil
 }
 
-func (s *MicroService) AddByTrigger(lt LambdaTrigger) error {
+func (s *MicroService) AddByTrigger(lt InvokeTrigger) error {
 	if lt.IsEmpty() {
 		return failure.System("[lt] event trigger is empty")
 	}
@@ -344,7 +392,7 @@ func (s *MicroService) AddByTrigger(lt LambdaTrigger) error {
 	return nil
 }
 
-func (s *MicroService) AddFeature(lt LambdaTrigger, title string) error {
+func (s *MicroService) AddFeature(lt InvokeTrigger, title string) error {
 	var rs Feature
 	if lt.IsEmpty() {
 		return failure.System("[lt] event trigger is empty")
