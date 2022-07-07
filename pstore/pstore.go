@@ -28,15 +28,34 @@ type PathPaging interface {
 	NextPage(ctx context.Context, optFns ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error)
 }
 
-// NewPathPaginatorFn constructor function used to create a new paginator for
+// PathPagingConstructor constructor function used to create a new paginator for
 // GetParametersByPath api call
-type NewPathPaginatorFn func(api AdapterAPI, in *ssm.GetParametersByPathInput) PathPaging
+type PathPagingConstructor func(api AdapterAPI, in *ssm.GetParametersByPathInput) PathPaging
 
 type Client struct {
 	api         AdapterAPI
 	isEncrypted bool
 
-	newPathPaginatorFn NewPathPaginatorFn
+	pathPagingConstructor PathPagingConstructor
+}
+
+func NewClientWithConfigMust(cfg aws.Config, isEncrypted bool) *Client {
+	client, err := NewClientWithConfig(cfg, isEncrypted)
+	if err != nil {
+		panic("NewClientWithConfig failed: " + err.Error())
+	}
+
+	return client
+}
+
+func NewClientWithConfig(cfg aws.Config, isEncrypted bool) (*Client, error) {
+	api := ssm.NewFromConfig(cfg)
+	client, err := NewClient(api, isEncrypted)
+	if err != nil {
+		return nil, failure.Wrap(err, "NewClient failed")
+	}
+
+	return client, nil
 }
 
 // NewClient simple constructor to inject private api and configuration values
@@ -45,19 +64,29 @@ func NewClient(api AdapterAPI, isEncrypted bool) (*Client, error) {
 		return nil, failure.System("api is nil, an initialized ssmiface.SSMAPI is required")
 	}
 
-	return &Client{api: api, isEncrypted: isEncrypted}, nil
+	client := Client{
+		api:                   api,
+		isEncrypted:           isEncrypted,
+		pathPagingConstructor: newPathPaginator,
+	}
+
+	return &client, nil
+}
+
+func (c *Client) SetEncryption(value bool) {
+	c.isEncrypted = value
 }
 
 func (c *Client) IsEncrypted() bool {
 	return c.isEncrypted
 }
 
-func (c *Client) PathPaginatorConstructor() NewPathPaginatorFn {
-	return c.newPathPaginatorFn
+func (c *Client) PathPagingConstructor() PathPagingConstructor {
+	return c.pathPagingConstructor
 }
 
-func (c *Client) SetPathPaginatorConstructor(fn NewPathPaginatorFn) {
-	c.newPathPaginatorFn = fn
+func (c *Client) SetPathPagingConstructor(fn PathPagingConstructor) {
+	c.pathPagingConstructor = fn
 }
 
 // Param will retrieve a single parameter as `key` returning the value always as a string.
@@ -85,6 +114,23 @@ func (c *Client) Param(ctx context.Context, key string) (string, error) {
 	return result, nil
 }
 
+// Params uses Param to retrieve multiple parameters from the given list of `keys`
+func (c *Client) Params(ctx context.Context, keys ...string) (map[string]string, error) {
+	var result map[string]string
+	var errs *failure.Multi
+	for _, key := range keys {
+		value, err := c.Param(ctx, key)
+		if err != nil {
+			err = failure.Wrap(err, "c.Param failed")
+			errs = failure.Append(err)
+			continue
+		}
+		result[key] = value
+	}
+
+	return result, errs.ErrorOrNil()
+}
+
 // Path retrieves one or more params in a specific hierarchy, controlled by path.
 func (c *Client) Path(ctx context.Context, path string, recursive ...bool) (map[string]string, error) {
 	result := map[string]string{}
@@ -105,7 +151,7 @@ func (c *Client) Path(ctx context.Context, path string, recursive ...bool) (map[
 		Recursive:      isRecursive,
 	}
 
-	createPager := c.PathPaginatorConstructor()
+	createPager := c.PathPagingConstructor()
 	if createPager == nil {
 		return nil, failure.System("c.PathPagingConstructor failed. closure is not initialized")
 	}

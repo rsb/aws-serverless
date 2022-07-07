@@ -176,7 +176,7 @@ func TestClient_Path_Success(t *testing.T) {
 			c, err := pstore.NewClient(&api, false)
 			require.NoError(t, err, "pstore.NewClient is not expected to fail")
 
-			c.SetPathPaginatorConstructor(builder)
+			c.SetPathPagingConstructor(builder)
 			value, err := c.Path(ctx, tt.key)
 			require.NoError(t, err, "c.Param is not expected to fail")
 			assert.Equal(t, tt.value, value)
@@ -230,7 +230,7 @@ func TestClient_Path_Failures(t *testing.T) {
 			c, err := pstore.NewClient(&api, false)
 			require.NoError(t, err, "pstore.NewClient is not expected to fail")
 
-			c.SetPathPaginatorConstructor(builder)
+			c.SetPathPagingConstructor(builder)
 			_, err = c.Path(ctx, tt.key)
 			require.Error(t, err, "c.Param is expected to fail")
 			assert.Contains(t, err.Error(), tt.msg)
