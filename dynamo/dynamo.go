@@ -4,14 +4,11 @@ package dynamo
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/rsb/failure"
-
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/rsb/failure"
 )
 
 const (
@@ -34,20 +31,28 @@ type APIBehavior interface {
 	UpdateTimeToLive(context.Context, *dynamodb.UpdateTimeToLiveInput, ...func(*dynamodb.Options)) (*dynamodb.UpdateTimeToLiveOutput, error)
 }
 
+type FormatterError interface {
+	FormatForError() string
+}
+
 type Keyable interface {
 	Full() map[string]types.AttributeValue
-	ConditionExpression() *string
-	ExpressionAttrNames() map[string]string
-	FormatForError() string
+	ConditionExpr() *string
+	ExprAttrNames() map[string]string
+	FormatterError
+}
+
+type Writable interface {
+	ToItem() (map[string]types.AttributeValue, error)
+	ToDBKey() map[string]types.AttributeValue
+	ConditionExpr() *string
+	ExprAttrNames() map[string]string
+	FormatterError
 }
 
 type Client struct {
 	api APIBehavior
 	tbl Table
-}
-
-func NewClient(api APIBehavior, tbl Table) *Client {
-	return &Client{api: api, tbl: tbl}
 }
 
 func (c *Client) TableName() string {
@@ -61,37 +66,17 @@ func (c *Client) NewGetItemIn(k Keyable) *dynamodb.GetItemInput {
 	}
 }
 
-type Key struct {
-	Hash          string             `dynamodbav:"pk"`
-	Sort          string             `dynamodbav:"sk"`
-	Domain        string             `dynamodbav:"dk"`
-	ExprNames     map[string]*string `dynamodbav:"-"`
-	ConditionExpr *string            `dynamodbav:"-"`
-}
-
-func (k *Key) MarshalDynamoDBAttributeValue() (types.AttributeValue, error) {
-	av := types.AttributeValueMemberS{}
-
-	return &av, nil
-}
-
-func (k *Key) Full() map[string]types.AttributeValue {
-	return map[string]types.AttributeValue{
-		HashKeyName: &types.AttributeValueMemberS{Value: k.Hash},
-		SortKeyName: &types.AttributeValueMemberS{Value: k.Sort},
+func (c *Client) NewPutInput(item map[string]types.AttributeValue, cond ...string) *dynamodb.PutItemInput {
+	in := dynamodb.PutItemInput{
+		Item:      item,
+		TableName: aws.String(c.TableName()),
 	}
-}
 
-func (k *Key) FormatForError() string {
-	return fmt.Sprintf("pk: %s, sk: %s, domain: %s", k.Hash, k.Sort, k.Domain)
-}
+	if len(cond) > 0 && cond[0] != "" {
+		in.ConditionExpression = aws.String(cond[0])
+	}
 
-func (k *Key) ConditionExpression() *string {
-	return k.ConditionExpr
-}
-
-func (k *Key) ExpressionAttrNames() map[string]*string {
-	return k.ExprNames
+	return &in
 }
 
 type Table struct {
