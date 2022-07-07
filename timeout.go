@@ -17,13 +17,7 @@ const (
 )
 
 type TimeoutConfig struct {
-	Period int `conf:"env:SLS_FEATURE_HANDLER_TIMEOUT, default:100ms"`
-}
-
-func NewTimeout(config TimeoutConfig) *Timeout {
-	return &Timeout{
-		period: config.Period,
-	}
+	Period time.Duration `conf:"env:SLS_FEATURE_HANDLER_TIMEOUT, default:100ms"`
 }
 
 type TimeoutCapturing interface {
@@ -31,7 +25,13 @@ type TimeoutCapturing interface {
 }
 
 type Timeout struct {
-	period int
+	period time.Duration
+}
+
+func NewTimeout(config TimeoutConfig) *Timeout {
+	return &Timeout{
+		period: config.Period,
+	}
 }
 
 func (t *Timeout) WithTimeConstraint(ctx context.Context, fn ConcreteHandlerFn) (out interface{}, err error) {
