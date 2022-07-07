@@ -169,7 +169,7 @@ func (r Repo) URI(p ...Protocol) string {
 	return uri
 }
 
-type ConfigurableFeature interface {
+type Configurable interface {
 	ProcessEnv() error
 	ProcessCLI(v *viper.Viper) error
 	CollectParamsFromEnv(appTitle string) (map[string]string, error)

@@ -16,30 +16,23 @@ const (
 	DefaultLDFlags = `-ldflags="-s -w -X main.Version=$(git rev-parse HEAD)"`
 )
 
-type CompileResult struct {
-	BuildDir   string
-	BinaryName string
-	BinaryPath string
-	CodeDir    string
-}
-
 func Zip(zf, binary string) error {
-	zipfile, err := os.Create(zf)
+	zipFile, err := os.Create(zf)
 	if err != nil {
 		return failure.ToSystem(err, "os.Create failed")
 	}
 	defer func() {
-		cerr := zipfile.Close()
-		if cerr != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "[defer] Failed to close zip file: %v\n", cerr)
+		cErr := zipFile.Close()
+		if cErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "[defer] Failed to close zip file: %v\n", cErr)
 		}
 	}()
 
-	zw := zip.NewWriter(zipfile)
+	zw := zip.NewWriter(zipFile)
 	defer func() {
-		zerr := zw.Close()
-		if zerr != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "[defer] Failed to close zip writer file: %v\n", zerr)
+		zErr := zw.Close()
+		if zErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "[defer] Failed to close zip writer file: %v\n", zErr)
 		}
 	}()
 

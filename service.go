@@ -3,6 +3,9 @@ package sls
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
+	"os/exec"
+	"path"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -108,112 +111,13 @@ func InvokeTriggerFromEvent(t reflect.Type) (InvokeTrigger, error) {
 
 type ConcreteHandlerFn func() (out interface{}, err error)
 
-// ServiceName is used for microservices. These are a repository of lambdas and as
-// such the Microservice is not a physical aws resource but rather a collection of resources
-// which include lambdas, apigw, sns queues, dynamodb etc... This name would act as the Prefix
-// for those physical resources
-type ServiceName struct {
-	Prefix
-	Label string
-}
-
-func NewServiceName(region, env string, label string) (ServiceName, error) {
-	var name ServiceName
-
-	prefix, err := NewPrefix(region, env)
-	if err != nil {
-		return name, failure.Wrap(err, "DefaultPrefix failed")
-	}
-
-	name = ServiceName{
-		Prefix: prefix,
-		Label:  label,
-	}
-
-	return name, nil
-}
-
-func (sn ServiceName) AppLabel() string {
-	return sn.Label
-}
-
-func (sn ServiceName) QualifiedName() string {
-	return fmt.Sprintf("%s-%s", sn.Prefix.String(), sn.AppLabel())
-}
-
-func (sn ServiceName) String() string {
-	return sn.QualifiedName()
-}
-
-// CodeLayout is a collection of directories which layout where the
-// required code is located in order to build and deploy aws lambdas.
-//
-// This layout makes the following assumptions:
-// 1) App is always under the Root directory
-// 2) Lambdas are always under the App directory
-// 3) Infra is always under the Root directory
-// 4) Build is always under the Infra directory
-// 5) Terraform is always under the Infra directory
-type CodeLayout struct {
-	Root      string
-	App       string
-	Lambdas   string
-	CLI       string
-	Infra     string
-	Build     string
-	Terraform string
-}
-
-func DefaultCodeLayout(dir, cliPath string) CodeLayout {
-	return CodeLayout{
-		Root:      dir,
-		CLI:       cliPath,
-		App:       DefaultAppDirName,
-		Lambdas:   DefaultLambdaDirName,
-		Infra:     DefaultInfraDirName,
-		Build:     DefaultBuildDirName,
-		Terraform: DefaultTerraformDirName,
-	}
-}
-
-func (cl CodeLayout) RootDir() string {
-	return cl.Root
-}
-
-func (cl CodeLayout) AppDir() string {
-	return filepath.Join(cl.RootDir(), cl.App)
-}
-
-func (cl CodeLayout) LambdasDir() string {
-	return filepath.Join(cl.AppDir(), cl.Lambdas)
-}
-func (cl CodeLayout) TriggerDir(lt InvokeTrigger) string {
-	return filepath.Join(cl.LambdasDir(), lt.String())
-}
-
-func (cl CodeLayout) InfraDir() string {
-	return filepath.Join(cl.Root, cl.Infra)
-}
-
-func (cl CodeLayout) BuildDir() string {
-	return filepath.Join(cl.InfraDir(), cl.Build)
-}
-
-func (cl CodeLayout) TerraformDir() string {
-	return filepath.Join(cl.InfraDir(), cl.Terraform)
-}
-
-func (cl CodeLayout) CLIDir() string {
-	return filepath.Join(cl.RootDir(), cl.CLI)
-}
-
 type Feature struct {
 	Name          string
 	QualifiedName string
 	Trigger       InvokeTrigger
 	BinaryName    string
 	BinaryZipName string
-	Conf          ConfigurableFeature
+	Conf          Configurable
 	Env           map[string]string
 }
 
@@ -237,16 +141,115 @@ func (l Feature) String() string {
 	return l.Name
 }
 
+// ServiceName is used for fender microservices. These are a repository of lambdas and as
+// such the Microservice is not a physical aws resource but rather a collection of resources
+// which include lambdas, apigw, sns queues, dynamodb etc... This name would act as the Prefix
+// for those physical resources
+type ServiceName struct {
+	Prefix
+	Title string
+}
+
+func NewServiceName(env string, title string) (ServiceName, error) {
+	var name ServiceName
+
+	prefix, err := DefaultPrefix(env)
+	if err != nil {
+		return name, failure.Wrap(err, "DefaultPrefix failed")
+	}
+
+	name = ServiceName{
+		Prefix: prefix,
+		Title:  title,
+	}
+
+	return name, nil
+}
+
+func (sn ServiceName) AppTitle() string {
+	return sn.Title
+}
+
+func (sn ServiceName) QualifiedName() string {
+	return fmt.Sprintf("%s-%s", sn.Prefix.String(), sn.AppTitle())
+}
+
+func (sn ServiceName) String() string {
+	return sn.QualifiedName()
+}
+
+type Features map[string]Feature
+
+type CodeLayout struct {
+	Root      string
+	Lambdas   string
+	CLI       string
+	Infra     string
+	Build     string
+	Terraform string
+}
+
+func (cl CodeLayout) RootDir() string {
+	return cl.Root
+}
+
+func (cl CodeLayout) LambdasDir() string {
+	return filepath.Join(cl.RootDir(), cl.Lambdas)
+}
+
+func (cl CodeLayout) InfraDir() string {
+	return filepath.Join(cl.RootDir(), cl.Infra)
+}
+
+func (cl CodeLayout) TerraformDir() string {
+	return filepath.Join(cl.InfraDir(), cl.Terraform)
+}
+
+func (cl CodeLayout) BuildDir() string {
+	return cl.Build
+}
+
+func (cl CodeLayout) CLIDir() string {
+	return filepath.Join(cl.RootDir(), cl.CLI)
+}
+
+func (cl CodeLayout) TriggerDir(et InvokeTrigger) string {
+	return filepath.Join(cl.LambdasDir(), et.String())
+}
+
+func DefaultCodeLayout(root, cliPath string) CodeLayout {
+	return CodeLayout{
+		Root:      root,
+		Lambdas:   DefaultLambdasDir,
+		Infra:     DefaultInfraDir,
+		Terraform: DefaultTerraform,
+		Build:     DefaultBuildDir,
+		CLI:       cliPath,
+	}
+}
+
+/*
+	Inputs for microservices
+
+	1) root directory - absolute path to the microservice codebase
+	2) repo 					- GitHub repository information used to checkout the code base
+	3) app title      - the base name in our AWS resource naming convention for microservices
+	4) cli title 			- the name of microservice's cli binary used to manage this cli
+	5) env 						- name of the aws environment the microservice will run in
+	6) region 				- default aws region when managing aws resources through the sdk
+	7) profile 				- the aws profile used by system managing the environment. used for creds
+
+*/
 type MicroService struct {
 	CodeLayout
 	Resource TFResource
-	Name     ServiceName
 	Account  AWSAccount
+	Name     ServiceName
 	Repo     Repo
 	Features map[string]Feature
 }
 
-type MSSettings struct {
+type MicroServiceIn struct {
 	RootDir      string
 	Region       string
 	Env          string
@@ -258,32 +261,59 @@ type MSSettings struct {
 	CLI          string
 }
 
-type BuildSettings struct {
-	CodeDir     string
-	BuildDir    string
-	BinName     string
-	BinPath     string
-	SkipZipping bool
-	ZipName     string
+type FeatureDeployment struct {
+	Name        string
+	ServiceName string
+	CodeDir     *string
+	BuildDir    *string
+	BinName     *string
+	ZipName     *string
+	IsEnvOnly   bool
+	Lambda      Feature
 }
 
-type BuildResult struct {
-	Settings BuildSettings
-	ZipName  string
-	ZipData  []byte
+func (s *MicroService) NewBuildSettings(feature Feature) BuildSettings {
+	binName := feature.BinaryName
+	buildDir := s.BuildDir()
+	return BuildSettings{
+		CodeDir:  filepath.Join(s.LambdasDir(), feature.CodeDir()),
+		BuildDir: s.BuildDir(),
+		BinName:  binName,
+		ZipName:  feature.BinaryZipName,
+		BinPath:  filepath.Join(buildDir, binName),
+	}
 }
-
-func NewMicroService(in MSSettings) (*MicroService, error) {
-	if in.RootDir == "" {
-		return nil, failure.Validation("in.RootDir for (%s) is empty", in.App)
+func (s *MicroService) BuildFeatureCode(buildDir, binaryName, sourceDir string) (*CompileResult, error) {
+	cmd, err := NewGoBuildCmd(buildDir, binaryName, sourceDir)
+	if err != nil {
+		return nil, failure.Wrap(err, "NewGoBuildCmd failed for (%s,%s,%s)", buildDir, binaryName, sourceDir)
 	}
 
-	name, err := NewServiceName(in.Region, in.Env, in.App)
+	if err := cmd.Run(); err != nil {
+		return nil, failure.Wrap(err, "could not build (%s) cmd.Run failed.", binaryName)
+	}
+
+	rs := CompileResult{
+		BuildDir:   buildDir,
+		BinaryName: binaryName,
+		BinaryPath: filepath.Join(buildDir, binaryName),
+		CodeDir:    sourceDir,
+	}
+
+	return &rs, nil
+}
+
+func NewMicroService(in MicroServiceIn) (*MicroService, error) {
+	if in.RootDir == "" {
+		return nil, failure.Config("in.RootDir for (%s) is empty", in.App)
+	}
+
+	name, err := NewServiceName(in.Env, in.App)
 	if err != nil {
 		return nil, failure.Wrap(err, "NewServiceName failure")
 	}
 
-	repo := NewRepo(in.RepoOwner, in.Repo, in.RepoRef, in.IsRepoBranch)
+	repo := NewRepo(in.RepoOwner, in.Repo, DefaultRepoRefName, true)
 
 	cliPath := fmt.Sprintf("app/cli/%s", in.CLI)
 	layout := DefaultCodeLayout(in.RootDir, cliPath)
@@ -304,23 +334,11 @@ func (s *MicroService) String() string {
 	return s.Name.QualifiedName()
 }
 
-func (s *MicroService) NewBuildSettings(feature Feature) BuildSettings {
-	binName := feature.BinaryName
-	buildDir := s.BuildDir()
-	return BuildSettings{
-		CodeDir:  filepath.Join(s.LambdasDir(), feature.CodeDir()),
-		BuildDir: s.BuildDir(),
-		BinName:  binName,
-		ZipName:  feature.BinaryZipName,
-		BinPath:  filepath.Join(buildDir, binName),
-	}
-}
-
 func (s *MicroService) Feature(title string) (Feature, error) {
-	var f Feature
+	var l Feature
 	f, ok := s.Features[title]
 	if !ok {
-		return f, failure.NotFound("feature (%s)", title)
+		return l, failure.NotFound("feature (%s)", title)
 	}
 
 	return f, nil
@@ -351,12 +369,12 @@ func (s *MicroService) LoadFeaturesFromFilesystem() error {
 	return nil
 }
 
-func (s *MicroService) AddByTrigger(lt InvokeTrigger) error {
-	if lt.IsEmpty() {
-		return failure.System("[lt] event trigger is empty")
+func (s *MicroService) AddByTrigger(et InvokeTrigger) error {
+	if et.IsEmpty() {
+		return failure.System("[et] event trigger is empty")
 	}
 
-	triggerDir := s.TriggerDir(lt)
+	triggerDir := s.TriggerDir(et)
 	files, err := ioutil.ReadDir(triggerDir)
 	if err != nil {
 		return failure.ToSystem(err, "ioutil.ReadDir failed")
@@ -384,7 +402,7 @@ func (s *MicroService) AddByTrigger(lt InvokeTrigger) error {
 			continue
 		}
 
-		if err := s.AddFeature(lt, f.Name()); err != nil {
+		if err := s.AddFeature(et, f.Name()); err != nil {
 			return failure.Wrap(err, "s.AddFeature failed")
 		}
 	}
@@ -392,10 +410,10 @@ func (s *MicroService) AddByTrigger(lt InvokeTrigger) error {
 	return nil
 }
 
-func (s *MicroService) AddFeature(lt InvokeTrigger, title string) error {
+func (s *MicroService) AddFeature(et InvokeTrigger, title string) error {
 	var rs Feature
-	if lt.IsEmpty() {
-		return failure.System("[lt] event trigger is empty")
+	if et.IsEmpty() {
+		return failure.System("[et] event trigger is empty")
 	}
 
 	if title == "" {
@@ -406,15 +424,95 @@ func (s *MicroService) AddFeature(lt InvokeTrigger, title string) error {
 		s.Features = map[string]Feature{}
 	}
 
-	qualified := fmt.Sprintf("%s-%s_%s", s.Name.QualifiedName(), lt, title)
+	qualified := fmt.Sprintf("%s-%s_%s", s.Name.QualifiedName(), et, title)
 	rs = Feature{
 		Name:          title,
 		QualifiedName: qualified,
-		Trigger:       lt,
+		Trigger:       et,
 		BinaryName:    DefaultOutputName,
 		BinaryZipName: DefaultBinaryZipName,
 	}
 
 	s.Features[title] = rs
 	return nil
+}
+
+type CompileResult struct {
+	BuildDir   string
+	BinaryName string
+	BinaryPath string
+	CodeDir    string
+}
+
+func (s *MicroService) BuildFeature(feature Feature, codeDir ...string) (*CompileResult, error) {
+
+	targetDir := filepath.Join(s.LambdasDir(), feature.CodeDir())
+	if len(codeDir) > 0 && codeDir[0] != "" {
+		targetDir = codeDir[0]
+	}
+
+	binName := feature.BinaryName
+	if binName == "" {
+		binName = DefaultOutputName
+	}
+	rs, err := s.BuildFeatureCode(s.BuildDir(), binName, targetDir)
+	if err != nil {
+		return nil, failure.Wrap(err, "s.BuildFeatureCode failed")
+	}
+
+	return rs, nil
+}
+func (s *MicroService) GoPath() (string, error) {
+	goExec, err := exec.LookPath(GoBinaryName)
+	if err != nil {
+		return "", failure.ToSystem(err, "exec.LookPath failed")
+	}
+
+	return goExec, nil
+}
+
+func (s *MicroService) UpdateEnvWithPStoreCmd(feature string) (*exec.Cmd, error) {
+	rootDir := s.RootDir()
+
+	goExec, err := s.GoPath()
+	if err != nil {
+		return nil, failure.ToSystem(err, "s.GoPath failed")
+	}
+
+	if feature == "" {
+		return nil, failure.System("feature is empty")
+	}
+
+	mainGo := path.Join(s.CLIDir(), "main.go")
+
+	cmd := exec.Cmd{
+		Env:  os.Environ(),
+		Dir:  rootDir,
+		Path: goExec,
+		Args: []string{
+			goExec,
+			"run",
+			mainGo,
+			"infra",
+			"deploy",
+			feature,
+			"--env-only",
+		},
+	}
+	return &cmd, nil
+}
+
+type BuildSettings struct {
+	CodeDir     string
+	BuildDir    string
+	BinName     string
+	BinPath     string
+	SkipZipping bool
+	ZipName     string
+}
+
+type BuildResult struct {
+	Settings BuildSettings
+	ZipName  string
+	ZipData  []byte
 }
