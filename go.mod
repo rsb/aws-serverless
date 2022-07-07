@@ -7,6 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.16.7
 	github.com/aws/aws-sdk-go-v2/config v1.15.13
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.15.4
+	github.com/aws/aws-sdk-go-v2/service/lambda v1.23.4
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.27.0
 	github.com/rsb/failure v0.10.0
 	github.com/spf13/viper v1.11.0

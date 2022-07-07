@@ -65,6 +65,8 @@ github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.7.4 h1:kkIsp
 github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.7.4/go.mod h1:EjdPGnmBHOi9ieyuR9ck5Nguyb32/fdjoxDPVrYWYAA=
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.8 h1:oKnAXxSF2FUvfgw8uzU/v9OTYorJJZ8eBmWhr9TWVVQ=
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.8/go.mod h1:rDVhIMAX9N2r8nWxDUlbubvvaFMnfsm+3jAV7q+rpM4=
+github.com/aws/aws-sdk-go-v2/service/lambda v1.23.4 h1:d1Olp+josNRAlrrtacghtos74rffKS6Mq5gEUBHfgHw=
+github.com/aws/aws-sdk-go-v2/service/lambda v1.23.4/go.mod h1:XiSHsT7z5ScD2AsTgfa1UEFQaAr53dHP1oWvaqSW6jQ=
 github.com/aws/aws-sdk-go-v2/service/ssm v1.27.0 h1:RoSBbDIXQfd8QnZ4LF5pjx3k+TYCbouiivt57M7lnVU=
 github.com/aws/aws-sdk-go-v2/service/ssm v1.27.0/go.mod h1:xXm3aLL7B/5EyUik6l08kLpkn23Fr0UOi8dND5IhOOg=
 github.com/aws/aws-sdk-go-v2/service/sso v1.11.11 h1:XOJWXNFXJyapJqQuCIPfftsOf0XZZioM0kK6OPRt9MY=
