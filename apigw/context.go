@@ -95,10 +95,3 @@ func GetRoles(ctx context.Context) string {
 	}
 	return roles
 }
-
-// func setUserIDTraceLabel(ctx context.Context) {
-// 	userID := GetUserID(ctx)
-// 	if userID != "" {
-// 		epsagon.Label("user_id", userID)
-// 	}
-// }
