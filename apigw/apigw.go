@@ -26,7 +26,6 @@ const (
 
 type RestHandlerConfig struct {
 	sls.TimeoutConfig
-	AppName string `conf:"env:APP_NAME"`
 }
 
 type Handler interface {
