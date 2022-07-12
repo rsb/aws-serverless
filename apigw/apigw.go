@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/aws/aws-lambda-go/lambda"
+
 	"github.com/rsb/sls"
 	"github.com/rsb/sls/logging"
 
@@ -24,6 +26,11 @@ const (
 	WildCardMediaType           = "*/*"
 )
 
+func LambdaStart(config RestHandlerConfig, h Handler, logger *zap.SugaredLogger) {
+	runner := NewRestRunner(config, h, logger)
+	lambda.Start(runner.Handle)
+}
+
 type RestHandlerConfig struct {
 	sls.TimeoutConfig
 }
@@ -36,6 +43,14 @@ type RestRunner struct {
 	feature Handler
 	logger  *zap.SugaredLogger
 	timeout sls.TimeoutCapturing
+}
+
+func NewRestRunner(c RestHandlerConfig, h Handler, l *zap.SugaredLogger) *RestRunner {
+	return &RestRunner{
+		feature: h,
+		logger:  l,
+		timeout: sls.NewTimeout(c.TimeoutConfig),
+	}
 }
 
 func (h *RestRunner) Handle(ctx context.Context, req events.APIGatewayProxyRequest) (out interface{}, err error) {
