@@ -56,3 +56,13 @@ func (c *Client) Write(ctx context.Context, row Writable) error {
 
 	return nil
 }
+
+func (c *Client) Delete(ctx context.Context, key Keyable) error {
+	in := c.NewDeleteInput(key.Full())
+
+	if _, err := c.api.DeleteItem(ctx, in); err != nil {
+		return failure.ToSystem(err, "c.api.DeleteItem failed (%s)", key.FormatForError())
+	}
+
+	return nil
+}

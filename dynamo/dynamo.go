@@ -96,6 +96,19 @@ func (c *Client) NewPutInput(item map[string]types.AttributeValue, cond ...strin
 	return &in
 }
 
+func (c *Client) NewDeleteInput(key map[string]types.AttributeValue, cond ...string) *dynamodb.DeleteItemInput {
+	in := dynamodb.DeleteItemInput{
+		Key:       key,
+		TableName: aws.String(c.TableName()),
+	}
+
+	if len(cond) > 0 && cond[0] != "" {
+		in.ConditionExpression = aws.String(cond[0])
+	}
+
+	return &in
+}
+
 type Table struct {
 	name    string
 	hash    string
