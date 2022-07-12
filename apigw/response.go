@@ -41,15 +41,15 @@ func (s *Success) AddHeaders(h map[string]string) {
 	}
 }
 
-func OK(body interface{}) Success {
-	return Success{
+func OK(body interface{}) *Success {
+	return &Success{
 		StatusCode: http.StatusOK,
 		Body:       body,
 	}
 }
 
-func NoContent() Success {
-	return Success{StatusCode: http.StatusNoContent}
+func NoContent() *Success {
+	return &Success{StatusCode: http.StatusNoContent}
 }
 
 func BadRequest(err error, body interface{}) events.APIGatewayProxyResponse {
