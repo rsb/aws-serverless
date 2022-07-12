@@ -55,6 +55,23 @@ type Client struct {
 	tbl Table
 }
 
+func NewClient(api APIBehavior, tbl Table) (*Client, error) {
+	if tbl.Name() == "" {
+		return nil, failure.InvalidParam("tbl.Name() is empty")
+	}
+
+	if tbl.HashKey() == "" {
+		return nil, failure.InvalidParam("tbl.HashKey() is empty")
+	}
+
+	if tbl.SortKey() == "" {
+		return nil, failure.InvalidParam("tbl.SortKey() is empty")
+	}
+
+	client := Client{api: api, tbl: tbl}
+	return &client, nil
+}
+
 func (c *Client) TableName() string {
 	return c.tbl.Name()
 }
@@ -128,4 +145,12 @@ func NewTable(name, hash, sort string, idx map[string]string) (Table, error) {
 
 func (t Table) Name() string {
 	return t.name
+}
+
+func (t Table) HashKey() string {
+	return t.hash
+}
+
+func (t Table) SortKey() string {
+	return t.sort
 }
