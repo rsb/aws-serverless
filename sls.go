@@ -179,7 +179,7 @@ type Configurable interface {
 	EnvNames() ([]string, error)
 	EnvToMap() (map[string]string, error)
 	SetPrefix(prefix string)
-	GetPrefix()
+	GetPrefix() string
 	IsPrefixEnabled() bool
 	MarkDefaultsAsExcluded()
 	MarkDefaultsAsIncluded()
