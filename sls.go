@@ -6,6 +6,8 @@ package sls
 import (
 	"fmt"
 
+	"github.com/spf13/cobra"
+
 	"github.com/spf13/viper"
 
 	"github.com/rsb/failure"
@@ -171,7 +173,7 @@ func (r Repo) URI(p ...Protocol) string {
 
 type Configurable interface {
 	ProcessEnv() error
-	ProcessCLI(v *viper.Viper) error
+	ProcessCLI(cmd *cobra.Command, v *viper.Viper) error
 	CollectParamsFromEnv(appTitle string) (map[string]string, error)
 	ParamNames(appTitle string) ([]string, error)
 	EnvNames() ([]string, error)
