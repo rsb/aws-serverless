@@ -5,6 +5,7 @@ package pstore
 import (
 	"context"
 	"errors"
+	"github.com/rsb/sls"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -98,7 +99,7 @@ func (c *Client) Param(ctx context.Context, key string) (string, error) {
 	}
 	in := ssm.GetParameterInput{
 		Name:           aws.String(key),
-		WithDecryption: c.IsEncrypted(),
+		WithDecryption: sls.BoolPtr(c.IsEncrypted()),
 	}
 
 	out, err := c.api.GetParameter(ctx, &in)
@@ -147,8 +148,8 @@ func (c *Client) Path(ctx context.Context, path string, recursive ...bool) (map[
 	}
 	in := ssm.GetParametersByPathInput{
 		Path:           aws.String(path),
-		WithDecryption: c.IsEncrypted(),
-		Recursive:      isRecursive,
+		WithDecryption: sls.BoolPtr(c.IsEncrypted()),
+		Recursive:      sls.BoolPtr(isRecursive),
 	}
 
 	createPager := c.PathPagingConstructor()
@@ -201,7 +202,7 @@ func (c *Client) Collect(ctx context.Context, keys ...string) (map[string]string
 
 	in := ssm.GetParametersInput{
 		Names:          names,
-		WithDecryption: c.IsEncrypted(),
+		WithDecryption: sls.BoolPtr(c.IsEncrypted()),
 	}
 
 	out, err := c.api.GetParameters(ctx, &in)
@@ -276,7 +277,7 @@ func (c *Client) Put(ctx context.Context, key, value string, overwrite ...bool) 
 		Name:      aws.String(key),
 		Type:      types.ParameterTypeString,
 		Value:     aws.String(value),
-		Overwrite: isOverwrite,
+		Overwrite: sls.BoolPtr(isOverwrite),
 		Tier:      types.ParameterTierStandard,
 	}
 

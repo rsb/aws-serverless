@@ -132,3 +132,7 @@ func resolveContextOpts(opts ...context.Context) context.Context {
 
 	return ctx
 }
+
+func BoolPtr(v bool) *bool {
+	return &v
+}
